@@ -1,314 +1,680 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GPS Trajectory Recorder</title>
-
-<style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b4f6c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Columbia Pike GPS Corridor Tracker</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --navy: #0b4f6c;
+      --navy-dark: #073b51;
+      --blue: #1678a4;
+      --green: #16844a;
+      --red: #c93b3b;
+      --amber: #a86400;
+      --ink: #152330;
+      --muted: #627487;
+      --line: #d8e1e8;
+      --panel: #ffffff;
+      --page: #f3f6f8;
+      --soft-blue: #eaf4f8;
+      --soft-green: #e9f6ef;
+      --soft-amber: #fff5df;
+      --radius: 16px;
+      --shadow: 0 7px 24px rgba(18, 46, 63, .08);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        margin: 0;
-        padding: 20px;
-        background: #f4f6f8;
-        color: #222;
+      margin: 0;
+      min-height: 100vh;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
-
-    .container {
-        max-width: 600px;
-        margin: auto;
+    button, input { font: inherit; }
+    .app { width: min(100%, 760px); margin: 0 auto; padding-bottom: 30px; }
+    header {
+      padding: 20px 17px 18px;
+      background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+      color: #fff;
+      border-radius: 0 0 22px 22px;
+      box-shadow: var(--shadow);
     }
-
-    h1 {
-        text-align: center;
+    .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    h1 { margin: 0; font-size: clamp(21px, 6vw, 28px); line-height: 1.12; letter-spacing: -.35px; }
+    header p { margin: 7px 0 0; color: rgba(255,255,255,.76); font-size: 12px; line-height: 1.45; }
+    .status-pill {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+      border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.1);
+      padding: 7px 9px; border-radius: 999px; font-size: 10px; font-weight: 800;
+      letter-spacing: .45px; text-transform: uppercase;
     }
-
-    .status {
-        text-align: center;
-        font-size: 20px;
-        font-weight: bold;
-        margin-bottom: 15px;
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #b8c4cc; box-shadow: 0 0 0 3px rgba(255,255,255,.11); }
+    .status-pill.recording .status-dot { background: #55dc8a; animation: pulse 1.6s infinite; }
+    .status-pill.error .status-dot { background: #ff8d8d; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(85,220,138,0); } }
+    main { padding: 14px 13px; }
+    .notice {
+      display: none; margin: 0 0 12px; padding: 11px 12px; border-radius: 12px;
+      background: var(--soft-amber); border: 1px solid #ead39d; color: #62460d;
+      font-size: 11px; line-height: 1.45;
     }
-
-    .inactive {
-        color: #d32f2f;
+    .notice.show { display: block; }
+    .controls { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 9px; margin-bottom: 12px; }
+    .btn {
+      min-height: 48px; border: 1px solid #b9c7d1; border-radius: 13px; background: #fff;
+      color: #304354; font-weight: 800; font-size: 13px; cursor: pointer; touch-action: manipulation;
+      box-shadow: 0 2px 8px rgba(18,46,63,.045);
     }
-
-    .active {
-        color: #009640;
+    .btn:active:not(:disabled) { transform: translateY(1px); }
+    .btn.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .btn.stop { background: #fff1f1; border-color: #e7b6b6; color: #9d2424; }
+    .btn:disabled { opacity: .43; cursor: not-allowed; }
+    .summary-bar {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden;
+      border: 1px solid var(--line); border-radius: 13px; margin-bottom: 12px; background: var(--line);
     }
-
-    .card {
-        background: white;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 15px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    .summary-item { background: #fff; padding: 10px 8px; text-align: center; }
+    .summary-item strong { display: block; font-size: 16px; color: var(--navy-dark); font-variant-numeric: tabular-nums; }
+    .summary-item span { display: block; margin-top: 2px; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .section-title { margin: 17px 3px 8px; font-size: 10px; color: #526577; text-transform: uppercase; letter-spacing: .85px; font-weight: 850; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hero-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 13px; box-shadow: var(--shadow); min-width: 0;
     }
-
-    .row {
-        display: flex;
-        justify-content: space-between;
-        padding: 7px 0;
-        border-bottom: 1px solid #eee;
+    .hero-card.wide { grid-column: 1 / -1; }
+    .label { color: var(--muted); font-size: 9.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
+    .big-value { margin-top: 5px; font-size: clamp(22px, 7vw, 34px); line-height: 1; font-weight: 850; color: var(--navy-dark); font-variant-numeric: tabular-nums; }
+    .big-value.direction { display: flex; align-items: center; gap: 8px; }
+    .direction-arrow { font-size: .75em; }
+    .subvalue { margin-top: 6px; color: var(--muted); font-size: 10.5px; line-height: 1.35; min-height: 14px; }
+    .signal-card {
+      background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
     }
-
-    .value {
-        font-weight: bold;
+    .signal-primary { padding: 14px; background: linear-gradient(120deg, var(--soft-blue), #fff); }
+    .signal-primary .signal-name { margin-top: 4px; font-size: 19px; font-weight: 850; line-height: 1.18; color: var(--navy-dark); }
+    .signal-primary .signal-distance { margin-top: 5px; font-size: 12px; color: var(--muted); }
+    .signal-rows { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+    .signal-row { min-width: 0; padding: 11px 12px; }
+    .signal-row + .signal-row { border-left: 1px solid var(--line); }
+    .signal-row strong { display: block; margin-top: 3px; font-size: 12px; line-height: 1.25; color: #243746; overflow-wrap: anywhere; }
+    .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+    .data-cell { background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 11px; min-width: 0; }
+    .data-cell strong { display: block; margin-top: 4px; font-size: 14px; color: #263b4a; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    details { margin-top: 14px; background: #fff; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+    summary { padding: 12px 13px; cursor: pointer; font-size: 11px; font-weight: 800; color: #3d5364; }
+    details .details-body { padding: 0 13px 13px; color: var(--muted); font-size: 10.5px; line-height: 1.55; }
+    .privacy { margin: 14px 4px 0; color: #718293; font-size: 9.5px; line-height: 1.45; text-align: center; }
+    .ok { color: var(--green) !important; }
+    .warn { color: var(--amber) !important; }
+    .bad { color: var(--red) !important; }
+    @media (min-width: 620px) {
+      main { padding: 17px; }
+      .hero-grid { grid-template-columns: repeat(4, 1fr); }
+      .hero-card.wide { grid-column: span 2; }
+      .data-grid { grid-template-columns: repeat(4, 1fr); }
     }
-
-    button {
-        width: 100%;
-        padding: 16px;
-        margin-top: 10px;
-        border: none;
-        border-radius: 10px;
-        font-size: 18px;
-        font-weight: bold;
-        cursor: pointer;
+    @media (max-width: 390px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .controls .download { grid-column: 1 / -1; }
+      .signal-rows { grid-template-columns: 1fr; }
+      .signal-row + .signal-row { border-left: 0; border-top: 1px solid var(--line); }
     }
-
-    #startButton {
-        background: #009640;
-        color: white;
-    }
-
-    #stopButton {
-        background: #d32f2f;
-        color: white;
-    }
-
-    #downloadButton {
-        background: #1565c0;
-        color: white;
-    }
-</style>
+  </style>
 </head>
-
 <body>
+<div class="app">
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Columbia Pike<br>GPS Corridor Tracker</h1>
+        <p>Live iPhone geolocation · on-device corridor map matching</p>
+      </div>
+      <div id="statusPill" class="status-pill"><span class="status-dot"></span><span id="statusText">Ready</span></div>
+    </div>
+  </header>
 
-<div class="container">
+  <main>
+    <div id="secureNotice" class="notice"></div>
 
-<h1>GPS Trajectory Recorder</h1>
-
-<div id="status" class="status inactive">
-GPS INACTIVE
-</div>
-
-<div class="card">
-
-    <div class="row">
-        <span>Latitude</span>
-        <span id="lat" class="value">--</span>
+    <div class="controls">
+      <button id="startBtn" class="btn primary" type="button">Start</button>
+      <button id="stopBtn" class="btn stop" type="button" disabled>Stop</button>
+      <button id="downloadBtn" class="btn download" type="button" disabled>Download CSV</button>
     </div>
 
-    <div class="row">
-        <span>Longitude</span>
-        <span id="lon" class="value">--</span>
+    <div class="summary-bar" aria-label="Session summary">
+      <div class="summary-item"><strong id="countValue">0</strong><span>Observations</span></div>
+      <div class="summary-item"><strong id="sessionValue">00:00</strong><span>Session</span></div>
+      <div class="summary-item"><strong id="fixAgeValue">—</strong><span>Fix age</span></div>
     </div>
 
-    <div class="row">
-        <span>Timestamp</span>
-        <span id="time" class="value">--</span>
-    </div>
+    <div class="section-title">Corridor position</div>
+    <section class="hero-grid">
+      <article class="hero-card wide">
+        <div class="label">Cumulative corridor distance</div>
+        <div id="corridorDistanceValue" class="big-value">—</div>
+        <div id="corridorDistanceSub" class="subvalue">Measured eastbound from Signal 13</div>
+      </article>
+      <article class="hero-card">
+        <div class="label">Direction</div>
+        <div id="directionValue" class="big-value direction"><span class="direction-arrow">↔</span><span>—</span></div>
+        <div id="directionSub" class="subvalue">Waiting for movement</div>
+      </article>
+      <article class="hero-card">
+        <div class="label">Distance to next signal</div>
+        <div id="nextDistanceValue" class="big-value">—</div>
+        <div id="nextDistanceSub" class="subvalue">Direction required</div>
+      </article>
+    </section>
 
-    <div class="row">
-        <span>Accuracy</span>
-        <span id="accuracy" class="value">--</span>
-    </div>
+    <div class="section-title">Matched signals</div>
+    <section class="signal-card">
+      <div class="signal-primary">
+        <div class="label">Nearest signal</div>
+        <div id="nearestSignalValue" class="signal-name">—</div>
+        <div id="nearestSignalSub" class="signal-distance">No GPS fix</div>
+      </div>
+      <div class="signal-rows">
+        <div class="signal-row"><div class="label">Previous signal</div><strong id="previousSignalValue">—</strong></div>
+        <div class="signal-row"><div class="label">Next signal</div><strong id="nextSignalValue">—</strong></div>
+      </div>
+    </section>
 
-    <div class="row">
-        <span>Speed</span>
-        <span id="speed" class="value">--</span>
-    </div>
+    <div class="section-title">Live GPS</div>
+    <section class="data-grid">
+      <div class="data-cell"><div class="label">Latitude</div><strong id="latitudeValue">—</strong></div>
+      <div class="data-cell"><div class="label">Longitude</div><strong id="longitudeValue">—</strong></div>
+      <div class="data-cell"><div class="label">Accuracy</div><strong id="accuracyValue">—</strong></div>
+      <div class="data-cell"><div class="label">Cross-track</div><strong id="crossTrackValue">—</strong></div>
+      <div class="data-cell"><div class="label">Speed</div><strong id="speedValue">—</strong></div>
+      <div class="data-cell"><div class="label">Heading</div><strong id="headingValue">—</strong></div>
+      <div class="data-cell"><div class="label">Timestamp</div><strong id="timestampValue">—</strong></div>
+      <div class="data-cell"><div class="label">Matched segment</div><strong id="segmentValue">—</strong></div>
+    </section>
 
-    <div class="row">
-        <span>Heading</span>
-        <span id="heading" class="value">--</span>
-    </div>
-
-    <div class="row">
-        <span>Points Collected</span>
-        <span id="count" class="value">0</span>
-    </div>
-
-</div>
-
-<button id="startButton" onclick="startGPS()">
-START RECORDING
-</button>
-
-<button id="stopButton" onclick="stopGPS()">
-STOP RECORDING
-</button>
-
-<button id="downloadButton" onclick="downloadCSV()">
-DOWNLOAD CSV
-</button>
-
+    <details>
+      <summary>How direction and matching work</summary>
+      <div class="details-body">
+        Each GPS fix is projected onto the nearest segment of the ordered Columbia Pike signal corridor. Direction uses recent change in matched corridor distance—not a single noisy point. A new direction needs repeated movement evidence, while reversing an established direction requires a larger opposite displacement and several consecutive confirmations. Direction is held while stopped instead of rapidly flipping.
+      </div>
+    </details>
+    <p class="privacy">All observations remain in this browser until you download the CSV or reload the page. No location data is transmitted by this file.</p>
+  </main>
 </div>
 
 <script>
+(() => {
+  'use strict';
 
-let watchID = null;
-let data = [];
+  // Ordered west-to-east. Coordinates are embedded from Columbia Pike Study Sites_tx.txt.
+  const SIGNALS = [
+    { id: 13,  name: 'Carlin Springs Rd',              lat: 38.853203, lon: -77.122028 },
+    { id: 3,   name: 'Jefferson St',                   lat: 38.853324, lon: -77.120427 },
+    { id: 14,  name: 'Greenbrier St',                  lat: 38.854049, lon: -77.117711 },
+    { id: 345, name: 'S Frederick St',                 lat: 38.854765, lon: -77.115240 },
+    { id: 15,  name: 'Dinwiddie St',                   lat: 38.855926, lon: -77.112196 },
+    { id: 16,  name: 'W. Four Mile Run Dr',            lat: 38.856374, lon: -77.109812 },
+    { id: 17,  name: 'E. Four Mile Run/S Buchanan St', lat: 38.856709, lon: -77.108537 },
+    { id: 18,  name: 'Wakefield St',                   lat: 38.857286, lon: -77.106484 },
+    { id: 19,  name: 'Thomas St',                      lat: 38.857924, lon: -77.104298 },
+    { id: 20,  name: 'Taylor St',                      lat: 38.858132, lon: -77.103596 },
+    { id: 21,  name: 'George Mason Dr',                lat: 38.858774, lon: -77.101327 },
+    { id: 22,  name: 'Quincy St',                      lat: 38.859526, lon: -77.098717 },
+    { id: 23,  name: 'Monroe St',                      lat: 38.860771, lon: -77.093932 },
+    { id: 24,  name: 'S Glebe Rd',                     lat: 38.861252, lon: -77.092045 },
+    { id: 25,  name: 'Highland St',                    lat: 38.862043, lon: -77.089042 }
+  ];
 
-function startGPS() {
+  const EARTH_M = 6371008.8;
+  const FT_PER_M = 3.280839895;
+  const MPH_PER_MPS = 2.236936292;
+  const REFERENCE_LAT = SIGNALS.reduce((sum, s) => sum + s.lat, 0) / SIGNALS.length;
+  const REFERENCE_LON = SIGNALS.reduce((sum, s) => sum + s.lon, 0) / SIGNALS.length;
 
-    if (!navigator.geolocation) {
-        alert("Geolocation is not supported by this browser.");
-        return;
+  function radians(value) { return value * Math.PI / 180; }
+  function localXY(lat, lon) {
+    return {
+      x: radians(lon - REFERENCE_LON) * EARTH_M * Math.cos(radians(REFERENCE_LAT)) * FT_PER_M,
+      y: radians(lat - REFERENCE_LAT) * EARTH_M * FT_PER_M
+    };
+  }
+  function haversineFeet(aLat, aLon, bLat, bLon) {
+    const p1 = radians(aLat), p2 = radians(bLat);
+    const dp = p2 - p1, dl = radians(bLon - aLon);
+    const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+    return 2 * EARTH_M * Math.asin(Math.sqrt(h)) * FT_PER_M;
+  }
+
+  // Prepare the corridor geometry once. Cumulative distance is measured from Signal 13.
+  let cumulative = 0;
+  SIGNALS.forEach((signal, index) => {
+    signal.xy = localXY(signal.lat, signal.lon);
+    signal.index = index;
+    if (index > 0) {
+      const previous = SIGNALS[index - 1];
+      signal.segmentFeet = haversineFeet(previous.lat, previous.lon, signal.lat, signal.lon);
+      cumulative += signal.segmentFeet;
+    } else {
+      signal.segmentFeet = 0;
     }
+    signal.cumulativeFeet = cumulative;
+  });
+  const CORRIDOR_LENGTH_FT = SIGNALS[SIGNALS.length - 1].cumulativeFeet;
 
-    document.getElementById("status").innerText = "GPS ACTIVE";
-    document.getElementById("status").className = "status active";
+  function projectToCorridor(lat, lon) {
+    const p = localXY(lat, lon);
+    let best = null;
+    for (let i = 0; i < SIGNALS.length - 1; i += 1) {
+      const a = SIGNALS[i], b = SIGNALS[i + 1];
+      const dx = b.xy.x - a.xy.x, dy = b.xy.y - a.xy.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const rawFraction = ((p.x - a.xy.x) * dx + (p.y - a.xy.y) * dy) / lengthSquared;
+      const fraction = Math.max(0, Math.min(1, rawFraction));
+      const qx = a.xy.x + fraction * dx, qy = a.xy.y + fraction * dy;
+      const crossTrackFeet = Math.hypot(p.x - qx, p.y - qy);
+      const alongFeet = a.cumulativeFeet + fraction * (b.cumulativeFeet - a.cumulativeFeet);
+      const candidate = {
+        crossTrackFeet,
+        corridorDistanceFeet: alongFeet,
+        segmentIndex: i,
+        segmentFraction: fraction,
+        rawSegmentFraction: rawFraction,
+        matchedLat: a.lat + fraction * (b.lat - a.lat),
+        matchedLon: a.lon + fraction * (b.lon - a.lon),
+        segmentFrom: a,
+        segmentTo: b
+      };
+      if (!best || candidate.crossTrackFeet < best.crossTrackFeet) best = candidate;
+    }
+    return best;
+  }
 
-    watchID = navigator.geolocation.watchPosition(
+  function nearestSignal(distanceFeet) {
+    return SIGNALS.reduce((best, signal) => {
+      const distance = Math.abs(signal.cumulativeFeet - distanceFeet);
+      return !best || distance < best.distanceFeet ? { signal, distanceFeet: distance } : best;
+    }, null);
+  }
 
-        function(position) {
+  function signalContext(distanceFeet, direction) {
+    const epsilon = 0.01;
+    const nearest = nearestSignal(distanceFeet);
+    let previous = null, next = null;
+    if (direction === 'EB') {
+      previous = [...SIGNALS].reverse().find(s => s.cumulativeFeet <= distanceFeet + epsilon) || null;
+      next = SIGNALS.find(s => s.cumulativeFeet > distanceFeet + epsilon) || null;
+    } else if (direction === 'WB') {
+      previous = SIGNALS.find(s => s.cumulativeFeet >= distanceFeet - epsilon) || null;
+      next = [...SIGNALS].reverse().find(s => s.cumulativeFeet < distanceFeet - epsilon) || null;
+    }
+    const distanceToNextFeet = next
+      ? Math.max(0, direction === 'EB' ? next.cumulativeFeet - distanceFeet : distanceFeet - next.cumulativeFeet)
+      : null;
+    return { nearest, previous, next, distanceToNextFeet };
+  }
 
-            const timestamp = new Date(position.timestamp);
+  class DirectionStabilizer {
+    constructor() { this.reset(); }
+    reset() {
+      this.history = [];
+      this.direction = null;
+      this.candidate = null;
+      this.candidateVotes = 0;
+      this.lastChangeMs = 0;
+      this.confidence = 0;
+      this.netMovementFeet = 0;
+    }
+    median(values) {
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    update(timestampMs, distanceFeet, accuracyMeters, crossTrackFeet) {
+      // Ignore very poor fixes for direction voting, while still allowing them to be recorded.
+      if (Number.isFinite(accuracyMeters) && accuracyMeters <= 60 && crossTrackFeet <= 700) {
+        this.history.push({ t: timestampMs, s: distanceFeet });
+      }
+      const cutoff = timestampMs - 20000;
+      this.history = this.history.filter(p => p.t >= cutoff).slice(-30);
+      if (this.history.length < 4) return this.snapshot();
 
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const accuracy = position.coords.accuracy;
+      const firstTime = this.history[0].t;
+      const durationSec = (this.history[this.history.length - 1].t - firstTime) / 1000;
+      if (durationSec < 4) return this.snapshot();
 
-            const speedMS = position.coords.speed;
+      const groupSize = Math.min(3, Math.floor(this.history.length / 2));
+      const startMedian = this.median(this.history.slice(0, groupSize).map(p => p.s));
+      const endMedian = this.median(this.history.slice(-groupSize).map(p => p.s));
+      const net = endMedian - startMedian;
+      this.netMovementFeet = net;
+      this.confidence = Math.min(1, Math.abs(net) / 180);
 
-            const speedMPH =
-                speedMS !== null
-                ? speedMS * 2.23694
-                : null;
+      const acquireThreshold = 45;
+      const reverseThreshold = 110;
+      const raw = net >= acquireThreshold ? 'EB' : (net <= -acquireThreshold ? 'WB' : null);
+      if (!raw) {
+        // Hold the last stable direction while stopped or while movement is ambiguous.
+        this.candidate = null;
+        this.candidateVotes = 0;
+        return this.snapshot();
+      }
 
-            const heading = position.coords.heading;
-
-            document.getElementById("lat").innerText =
-                lat.toFixed(7);
-
-            document.getElementById("lon").innerText =
-                lon.toFixed(7);
-
-            document.getElementById("time").innerText =
-                timestamp.toLocaleTimeString() + "." +
-                String(timestamp.getMilliseconds()).padStart(3, "0");
-
-            document.getElementById("accuracy").innerText =
-                accuracy.toFixed(1) + " m";
-
-            document.getElementById("speed").innerText =
-                speedMPH !== null
-                ? speedMPH.toFixed(1) + " mph"
-                : "--";
-
-            document.getElementById("heading").innerText =
-                heading !== null
-                ? heading.toFixed(0) + "°"
-                : "--";
-
-            data.push({
-                timestamp: timestamp.toISOString(),
-                latitude: lat,
-                longitude: lon,
-                accuracy_m: accuracy,
-                speed_mph: speedMPH,
-                heading_deg: heading
-            });
-
-            document.getElementById("count").innerText =
-                data.length;
-        },
-
-        function(error) {
-
-            alert(
-                "GPS Error: " +
-                error.code +
-                " - " +
-                error.message
-            );
-
-        },
-
-        {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 10000
+      if (!this.direction) {
+        if (this.candidate === raw) this.candidateVotes += 1;
+        else { this.candidate = raw; this.candidateVotes = 1; }
+        if (this.candidateVotes >= 2) {
+          this.direction = raw;
+          this.lastChangeMs = timestampMs;
+          this.candidate = null;
+          this.candidateVotes = 0;
         }
-    );
-}
-
-
-function stopGPS() {
-
-    if (watchID !== null) {
-
-        navigator.geolocation.clearWatch(watchID);
-
-        watchID = null;
-
-        document.getElementById("status").innerText =
-            "GPS STOPPED";
-
-        document.getElementById("status").className =
-            "status inactive";
+      } else if (raw === this.direction) {
+        this.candidate = null;
+        this.candidateVotes = 0;
+      } else if (Math.abs(net) >= reverseThreshold && timestampMs - this.lastChangeMs >= 8000) {
+        if (this.candidate === raw) this.candidateVotes += 1;
+        else { this.candidate = raw; this.candidateVotes = 1; }
+        if (this.candidateVotes >= 3) {
+          this.direction = raw;
+          this.lastChangeMs = timestampMs;
+          this.candidate = null;
+          this.candidateVotes = 0;
+        }
+      } else {
+        this.candidate = null;
+        this.candidateVotes = 0;
+      }
+      return this.snapshot();
     }
-}
+    snapshot() {
+      return {
+        direction: this.direction,
+        confidence: this.direction ? this.confidence : 0,
+        netMovementFeet: this.netMovementFeet,
+        pendingDirection: this.candidate,
+        pendingVotes: this.candidateVotes
+      };
+    }
+  }
 
+  const directionTracker = new DirectionStabilizer();
+  const observations = [];
+  let watchId = null;
+  let sessionStartedMs = null;
+  let lastFixMs = null;
+  let sessionTimer = null;
+  let wakeLock = null;
 
-function downloadCSV() {
+  const $ = id => document.getElementById(id);
+  const ui = {
+    statusPill: $('statusPill'), statusText: $('statusText'), secureNotice: $('secureNotice'),
+    startBtn: $('startBtn'), stopBtn: $('stopBtn'), downloadBtn: $('downloadBtn'),
+    count: $('countValue'), session: $('sessionValue'), fixAge: $('fixAgeValue'),
+    corridorDistance: $('corridorDistanceValue'), corridorDistanceSub: $('corridorDistanceSub'),
+    direction: $('directionValue'), directionSub: $('directionSub'),
+    nextDistance: $('nextDistanceValue'), nextDistanceSub: $('nextDistanceSub'),
+    nearest: $('nearestSignalValue'), nearestSub: $('nearestSignalSub'),
+    previous: $('previousSignalValue'), next: $('nextSignalValue'),
+    latitude: $('latitudeValue'), longitude: $('longitudeValue'), accuracy: $('accuracyValue'),
+    crossTrack: $('crossTrackValue'), speed: $('speedValue'), heading: $('headingValue'),
+    timestamp: $('timestampValue'), segment: $('segmentValue')
+  };
 
-    if (data.length === 0) {
-        alert("No GPS data recorded yet.");
-        return;
+  function setStatus(text, state = '') {
+    ui.statusText.textContent = text;
+    ui.statusPill.className = `status-pill ${state}`.trim();
+  }
+  function formatFeet(value) {
+    if (!Number.isFinite(value)) return '—';
+    return `${Math.round(value).toLocaleString()} ft`;
+  }
+  function signalLabel(signal) { return signal ? `${signal.id} · ${signal.name}` : 'End of corridor'; }
+  function formatDuration(seconds) {
+    const safe = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(safe / 60);
+    return `${String(minutes).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
+  }
+  function headingLabel(heading) {
+    if (!Number.isFinite(heading) || heading < 0) return '—';
+    const names = ['N','NE','E','SE','S','SW','W','NW'];
+    return `${Math.round(heading)}° ${names[Math.round(heading / 45) % 8]}`;
+  }
+  function nullable(value, digits = 3) { return Number.isFinite(value) ? value.toFixed(digits) : ''; }
+  function csvEscape(value) {
+    const text = value == null ? '' : String(value);
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function updateTimers() {
+    ui.session.textContent = sessionStartedMs ? formatDuration((Date.now() - sessionStartedMs) / 1000) : '00:00';
+    ui.fixAge.textContent = lastFixMs ? `${Math.max(0, Math.round((Date.now() - lastFixMs) / 1000))}s` : '—';
+  }
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen');
+    } catch (_) { wakeLock = null; }
+  }
+  async function releaseWakeLock() {
+    try { if (wakeLock) await wakeLock.release(); } catch (_) { /* no-op */ }
+    wakeLock = null;
+  }
+
+  function handlePosition(position) {
+    const c = position.coords;
+    const timestampMs = Number(position.timestamp) || Date.now();
+    const match = projectToCorridor(c.latitude, c.longitude);
+    const directionState = directionTracker.update(timestampMs, match.corridorDistanceFeet, c.accuracy, match.crossTrackFeet);
+    const context = signalContext(match.corridorDistanceFeet, directionState.direction);
+    const speedMps = Number.isFinite(c.speed) ? c.speed : null;
+    const heading = Number.isFinite(c.heading) ? c.heading : null;
+    const date = new Date(timestampMs);
+
+    const record = {
+      timestamp_iso: date.toISOString(),
+      timestamp_local: date.toLocaleString(),
+      geolocation_timestamp_ms: timestampMs,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      accuracy_m: c.accuracy,
+      altitude_m: Number.isFinite(c.altitude) ? c.altitude : null,
+      altitude_accuracy_m: Number.isFinite(c.altitudeAccuracy) ? c.altitudeAccuracy : null,
+      speed_mps: speedMps,
+      speed_mph: speedMps == null ? null : speedMps * MPH_PER_MPS,
+      heading_deg: heading,
+      matched_latitude: match.matchedLat,
+      matched_longitude: match.matchedLon,
+      corridor_distance_ft: match.corridorDistanceFeet,
+      corridor_distance_mi: match.corridorDistanceFeet / 5280,
+      corridor_length_ft: CORRIDOR_LENGTH_FT,
+      cross_track_ft: match.crossTrackFeet,
+      segment_from_signal_id: match.segmentFrom.id,
+      segment_from_signal_name: match.segmentFrom.name,
+      segment_to_signal_id: match.segmentTo.id,
+      segment_to_signal_name: match.segmentTo.name,
+      segment_fraction: match.segmentFraction,
+      direction: directionState.direction,
+      direction_confidence: directionState.confidence,
+      direction_window_net_ft: directionState.netMovementFeet,
+      nearest_signal_id: context.nearest.signal.id,
+      nearest_signal_name: context.nearest.signal.name,
+      distance_to_nearest_signal_ft: context.nearest.distanceFeet,
+      previous_signal_id: context.previous?.id ?? null,
+      previous_signal_name: context.previous?.name ?? null,
+      next_signal_id: context.next?.id ?? null,
+      next_signal_name: context.next?.name ?? null,
+      distance_to_next_signal_ft: context.distanceToNextFeet
+    };
+    observations.push(record);
+    lastFixMs = Date.now();
+
+    ui.count.textContent = observations.length.toLocaleString();
+    ui.downloadBtn.disabled = false;
+    ui.latitude.textContent = c.latitude.toFixed(6);
+    ui.longitude.textContent = c.longitude.toFixed(6);
+    ui.accuracy.textContent = `${c.accuracy.toFixed(1)} m`;
+    ui.accuracy.className = c.accuracy <= 15 ? 'ok' : (c.accuracy <= 40 ? 'warn' : 'bad');
+    ui.crossTrack.textContent = formatFeet(match.crossTrackFeet);
+    ui.crossTrack.className = match.crossTrackFeet <= 150 ? 'ok' : (match.crossTrackFeet <= 400 ? 'warn' : 'bad');
+    ui.speed.textContent = speedMps == null ? '—' : `${(speedMps * MPH_PER_MPS).toFixed(1)} mph`;
+    ui.heading.textContent = headingLabel(heading);
+    ui.timestamp.textContent = date.toLocaleTimeString([], { hour12: false });
+    ui.segment.textContent = `${match.segmentFrom.id} → ${match.segmentTo.id}`;
+
+    ui.corridorDistance.textContent = formatFeet(match.corridorDistanceFeet);
+    ui.corridorDistanceSub.textContent = `${(match.corridorDistanceFeet / 5280).toFixed(3)} mi from Signal 13 · corridor ${Math.round(CORRIDOR_LENGTH_FT).toLocaleString()} ft`;
+
+    const direction = directionState.direction;
+    const arrow = direction === 'EB' ? '↗' : (direction === 'WB' ? '↙' : '↔');
+    ui.direction.innerHTML = `<span class="direction-arrow">${arrow}</span><span>${direction || '—'}</span>`;
+    if (direction) {
+      const pct = Math.round(directionState.confidence * 100);
+      ui.directionSub.textContent = `${pct}% movement confidence · hold/flip hysteresis active`;
+    } else {
+      ui.directionSub.textContent = directionState.pendingDirection
+        ? `Confirming ${directionState.pendingDirection} movement…`
+        : 'Waiting for sustained corridor movement';
     }
 
-    let csv =
-        "timestamp,latitude,longitude,accuracy_m,speed_mph,heading_deg\n";
+    ui.nearest.textContent = signalLabel(context.nearest.signal);
+    ui.nearestSub.textContent = `${formatFeet(context.nearest.distanceFeet)} along corridor`;
+    ui.previous.textContent = direction ? signalLabel(context.previous) : 'Awaiting direction';
+    ui.next.textContent = direction ? signalLabel(context.next) : 'Awaiting direction';
+    ui.nextDistance.textContent = formatFeet(context.distanceToNextFeet);
+    ui.nextDistanceSub.textContent = context.next ? `to ${context.next.id} · ${context.next.name}` : (direction ? 'No downstream signal' : 'Direction required');
+    setStatus('Recording', 'recording');
+    updateTimers();
+  }
 
-    data.forEach(function(row) {
+  function handleError(error) {
+    const messages = {
+      1: 'Location permission was denied. Allow Location access for this site in Safari settings.',
+      2: 'Your location is currently unavailable. Move to an area with a clearer GPS view.',
+      3: 'The location request timed out. The tracker will continue trying.'
+    };
+    ui.secureNotice.textContent = messages[error.code] || `Location error: ${error.message || 'Unknown error'}`;
+    ui.secureNotice.classList.add('show');
+    setStatus('GPS issue', 'error');
+    if (error.code === 1) stopRecording();
+  }
 
-        csv +=
-            row.timestamp + "," +
-            row.latitude + "," +
-            row.longitude + "," +
-            row.accuracy_m + "," +
-            (row.speed_mph ?? "") + "," +
-            (row.heading_deg ?? "") +
-            "\n";
+  async function startRecording() {
+    if (!window.isSecureContext) {
+      ui.secureNotice.textContent = 'Live geolocation requires HTTPS. Open this page through GitHub Pages (https://…), not as a local file.';
+      ui.secureNotice.classList.add('show');
+      return;
+    }
+    if (!('geolocation' in navigator)) {
+      ui.secureNotice.textContent = 'This browser does not provide the Geolocation API.';
+      ui.secureNotice.classList.add('show');
+      setStatus('Unsupported', 'error');
+      return;
+    }
+    ui.secureNotice.classList.remove('show');
+    directionTracker.reset();
+    sessionStartedMs = Date.now();
+    lastFixMs = null;
+    setStatus('Requesting GPS');
+    ui.startBtn.disabled = true;
+    ui.stopBtn.disabled = false;
+    watchId = navigator.geolocation.watchPosition(handlePosition, handleError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
     });
+    clearInterval(sessionTimer);
+    sessionTimer = setInterval(updateTimers, 1000);
+    await requestWakeLock();
+  }
 
-    const blob =
-        new Blob([csv], {type: "text/csv"});
+  async function stopRecording() {
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    clearInterval(sessionTimer);
+    sessionTimer = null;
+    ui.startBtn.disabled = false;
+    ui.stopBtn.disabled = true;
+    setStatus(observations.length ? 'Stopped' : 'Ready');
+    updateTimers();
+    await releaseWakeLock();
+  }
 
-    const url =
-        URL.createObjectURL(blob);
+  function downloadCsv() {
+    if (!observations.length) return;
+    const columns = [
+      'timestamp_iso','timestamp_local','geolocation_timestamp_ms','latitude','longitude','accuracy_m',
+      'altitude_m','altitude_accuracy_m','speed_mps','speed_mph','heading_deg',
+      'matched_latitude','matched_longitude','corridor_distance_ft','corridor_distance_mi','corridor_length_ft',
+      'cross_track_ft','segment_from_signal_id','segment_from_signal_name','segment_to_signal_id','segment_to_signal_name','segment_fraction',
+      'direction','direction_confidence','direction_window_net_ft',
+      'nearest_signal_id','nearest_signal_name','distance_to_nearest_signal_ft',
+      'previous_signal_id','previous_signal_name','next_signal_id','next_signal_name','distance_to_next_signal_ft'
+    ];
+    const numericDigits = {
+      latitude: 7, longitude: 7, accuracy_m: 2, altitude_m: 2, altitude_accuracy_m: 2,
+      speed_mps: 3, speed_mph: 3, heading_deg: 2, matched_latitude: 7, matched_longitude: 7,
+      corridor_distance_ft: 2, corridor_distance_mi: 6, corridor_length_ft: 2, cross_track_ft: 2,
+      segment_fraction: 6, direction_confidence: 3, direction_window_net_ft: 2,
+      distance_to_nearest_signal_ft: 2, distance_to_next_signal_ft: 2
+    };
+    const lines = [columns.join(',')];
+    for (const row of observations) {
+      lines.push(columns.map(column => {
+        const value = row[column];
+        const formatted = Object.prototype.hasOwnProperty.call(numericDigits, column) && Number.isFinite(value)
+          ? value.toFixed(numericDigits[column])
+          : value;
+        return csvEscape(formatted);
+      }).join(','));
+    }
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/:/g, '-').replace(/\.\d{3}Z$/, 'Z');
+    link.href = URL.createObjectURL(blob);
+    link.download = `columbia_pike_gps_${stamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+  }
 
-    const a =
-        document.createElement("a");
+  ui.startBtn.addEventListener('click', startRecording);
+  ui.stopBtn.addEventListener('click', stopRecording);
+  ui.downloadBtn.addEventListener('click', downloadCsv);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && watchId != null) requestWakeLock();
+  });
+  window.addEventListener('beforeunload', event => {
+    if (watchId != null && observations.length) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
 
-    const now =
-        new Date();
+  if (!window.isSecureContext) {
+    ui.secureNotice.textContent = 'Preview mode: live geolocation requires HTTPS. Deploy this file as index.html on GitHub Pages before testing GPS.';
+    ui.secureNotice.classList.add('show');
+  }
+  updateTimers();
 
-    const filename =
-        "gps_trajectory_" +
-        now.toISOString()
-           .replace(/:/g, "-")
-           .replace(/\..+/, "") +
-        ".csv";
-
-    a.href = url;
-    a.download = filename;
-
-    document.body.appendChild(a);
-
-    a.click();
-
-    document.body.removeChild(a);
-
-    URL.revokeObjectURL(url);
-}
-
+  // Expose deterministic core functions for console testing without starting geolocation.
+  window.ColumbiaPikeTracker = Object.freeze({
+    signals: SIGNALS.map(({ xy, ...signal }) => ({ ...signal })),
+    corridorLengthFeet: CORRIDOR_LENGTH_FT,
+    projectToCorridor,
+    signalContext,
+    DirectionStabilizer
+  });
+})();
 </script>
-
 </body>
 </html>
