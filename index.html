@@ -1,1 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Trajectory Recorder</title>
 
+<style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f4f6f8;
+        color: #222;
+    }
+
+    .container {
+        max-width: 600px;
+        margin: auto;
+    }
+
+    h1 {
+        text-align: center;
+    }
+
+    .status {
+        text-align: center;
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+
+    .inactive {
+        color: #d32f2f;
+    }
+
+    .active {
+        color: #009640;
+    }
+
+    .card {
+        background: white;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 7px 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .value {
+        font-weight: bold;
+    }
+
+    button {
+        width: 100%;
+        padding: 16px;
+        margin-top: 10px;
+        border: none;
+        border-radius: 10px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    #startButton {
+        background: #009640;
+        color: white;
+    }
+
+    #stopButton {
+        background: #d32f2f;
+        color: white;
+    }
+
+    #downloadButton {
+        background: #1565c0;
+        color: white;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>GPS Trajectory Recorder</h1>
+
+<div id="status" class="status inactive">
+GPS INACTIVE
+</div>
+
+<div class="card">
+
+    <div class="row">
+        <span>Latitude</span>
+        <span id="lat" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Longitude</span>
+        <span id="lon" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Timestamp</span>
+        <span id="time" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Accuracy</span>
+        <span id="accuracy" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Speed</span>
+        <span id="speed" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Heading</span>
+        <span id="heading" class="value">--</span>
+    </div>
+
+    <div class="row">
+        <span>Points Collected</span>
+        <span id="count" class="value">0</span>
+    </div>
+
+</div>
+
+<button id="startButton" onclick="startGPS()">
+START RECORDING
+</button>
+
+<button id="stopButton" onclick="stopGPS()">
+STOP RECORDING
+</button>
+
+<button id="downloadButton" onclick="downloadCSV()">
+DOWNLOAD CSV
+</button>
+
+</div>
+
+<script>
+
+let watchID = null;
+let data = [];
+
+function startGPS() {
+
+    if (!navigator.geolocation) {
+        alert("Geolocation is not supported by this browser.");
+        return;
+    }
+
+    document.getElementById("status").innerText = "GPS ACTIVE";
+    document.getElementById("status").className = "status active";
+
+    watchID = navigator.geolocation.watchPosition(
+
+        function(position) {
+
+            const timestamp = new Date(position.timestamp);
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+
+            const speedMS = position.coords.speed;
+
+            const speedMPH =
+                speedMS !== null
+                ? speedMS * 2.23694
+                : null;
+
+            const heading = position.coords.heading;
+
+            document.getElementById("lat").innerText =
+                lat.toFixed(7);
+
+            document.getElementById("lon").innerText =
+                lon.toFixed(7);
+
+            document.getElementById("time").innerText =
+                timestamp.toLocaleTimeString() + "." +
+                String(timestamp.getMilliseconds()).padStart(3, "0");
+
+            document.getElementById("accuracy").innerText =
+                accuracy.toFixed(1) + " m";
+
+            document.getElementById("speed").innerText =
+                speedMPH !== null
+                ? speedMPH.toFixed(1) + " mph"
+                : "--";
+
+            document.getElementById("heading").innerText =
+                heading !== null
+                ? heading.toFixed(0) + "°"
+                : "--";
+
+            data.push({
+                timestamp: timestamp.toISOString(),
+                latitude: lat,
+                longitude: lon,
+                accuracy_m: accuracy,
+                speed_mph: speedMPH,
+                heading_deg: heading
+            });
+
+            document.getElementById("count").innerText =
+                data.length;
+        },
+
+        function(error) {
+
+            alert(
+                "GPS Error: " +
+                error.code +
+                " - " +
+                error.message
+            );
+
+        },
+
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000
+        }
+    );
+}
+
+
+function stopGPS() {
+
+    if (watchID !== null) {
+
+        navigator.geolocation.clearWatch(watchID);
+
+        watchID = null;
+
+        document.getElementById("status").innerText =
+            "GPS STOPPED";
+
+        document.getElementById("status").className =
+            "status inactive";
+    }
+}
+
+
+function downloadCSV() {
+
+    if (data.length === 0) {
+        alert("No GPS data recorded yet.");
+        return;
+    }
+
+    let csv =
+        "timestamp,latitude,longitude,accuracy_m,speed_mph,heading_deg\n";
+
+    data.forEach(function(row) {
+
+        csv +=
+            row.timestamp + "," +
+            row.latitude + "," +
+            row.longitude + "," +
+            row.accuracy_m + "," +
+            (row.speed_mph ?? "") + "," +
+            (row.heading_deg ?? "") +
+            "\n";
+    });
+
+    const blob =
+        new Blob([csv], {type: "text/csv"});
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const a =
+        document.createElement("a");
+
+    const now =
+        new Date();
+
+    const filename =
+        "gps_trajectory_" +
+        now.toISOString()
+           .replace(/:/g, "-")
+           .replace(/\..+/, "") +
+        ".csv";
+
+    a.href = url;
+    a.download = filename;
+
+    document.body.appendChild(a);
+
+    a.click();
+
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+}
+
+</script>
+
+</body>
+</html>
